@@ -2,90 +2,76 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Wave Park Video Loop - GIF Splash</title>
-
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reception TV</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      background: black;
-      overflow: hidden;
       height: 100%;
+      background: black;
     }
-    video {
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      transition: opacity 0.3s ease-in-out;
-      opacity: 1;
-    }
-    #overlay {
+    #videoPlayer, #splash {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
       object-fit: cover;
-      opacity: 0;
-      transition: opacity 0.5s ease-in-out;
-      z-index: 10;
+    }
+    #splash {
+      display: none;
     }
   </style>
 </head>
 <body>
   <video id="videoPlayer" autoplay muted playsinline></video>
-  <img id="overlay" src="Images/Splash_Anim.gif" alt="Splash GIF">
-
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const videoList = [
-      "Videos/video1.mp4",
-      "Videos/video2.mp4",
-      "Videos/video3.mp4",
-      "Videos/video4.mp4",
-      "Videos/video5.mp4",
-      "Videos/video6.mp4",
-      "Videos/video7.mp4",
-      "Videos/video8.mp4",
-      "Videos/video9.mp4"
-    ];
-
-    let currentVideo = 0;
-    const videoPlayer = document.getElementById("videoPlayer");
-    const overlay = document.getElementById("overlay");
-
-    function playVideo(index) {
-      currentVideo = index % videoList.length;
-
-      // Prepare for transition
-      overlay.style.opacity = 1;
-      videoPlayer.style.opacity = 0;
-
-      // After splash delay
-      setTimeout(() => {
-        videoPlayer.src = videoList[currentVideo];
-        videoPlayer.load();
-      }, 8000); // 8 seconds splash
+  <img id="splash" src="splash.gif" alt="Loading...">
+  <script>
+    // Fetches and parses the directory listing of /videos/
+    async function getVideoList() {
+      const response = await fetch('videos/');
+      const text = await response.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'text/html');
+      const links = Array.from(doc.querySelectorAll('a')).map(a => a.href);
+      // Filter for common video extensions
+      const videoFiles = links.filter(link => /\.(mp4|webm|ogg)$/i.test(link));
+      return videoFiles;
     }
 
-    // Triggered when video is ready to play
-    videoPlayer.onloadeddata = () => {
-      overlay.style.opacity = 0;
-      videoPlayer.style.opacity = 1;
-      videoPlayer.play().catch(err => console.error("Playback error:", err));
-    };
+    let videos = [];
+    let currentIndex = 0;
+    const videoEl = document.getElementById('videoPlayer');
+    const splashEl = document.getElementById('splash');
 
-    // Triggered when video ends
-    videoPlayer.onended = () => {
-      playVideo(currentVideo + 1);
-    };
+    function playVideo() {
+      videoEl.src = videos[currentIndex];
+      videoEl.load();
+      videoEl.play();
+    }
 
-    // Start the loop
-    playVideo(0);
-  });
-</script>
+    videoEl.addEventListener('ended', () => {
+      // Show splash GIF between videos
+      splashEl.style.display = 'block';
+      videoEl.style.display = 'none';
+      setTimeout(() => {
+        splashEl.style.display = 'none';
+        videoEl.style.display = 'block';
+        currentIndex = (currentIndex + 1) % videos.length;
+        playVideo();
+      }, 3000); // Adjust splash duration here (in ms)
+    });
 
-
-
+    window.addEventListener('load', async () => {
+      videos = await getVideoList();
+      if (videos.length > 0) {
+        playVideo();
+      } else {
+        console.error('No video files found in /videos/');
+      }
+    });
+  </script>
 </body>
 </html>
