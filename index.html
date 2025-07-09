@@ -6,39 +6,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reception TV</title>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      background: black;
-    }
-    #videoPlayer, #splash {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    #splash {
-      display: none;
-    }
+    html, body { margin: 0; padding: 0; height: 100%; background: black; }
+    #videoPlayer, #splash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+    #splash { display: none; }
   </style>
 </head>
 <body>
   <video id="videoPlayer" autoplay muted playsinline></video>
   <img id="splash" src="splash.gif" alt="Loading...">
   <script>
-    // Fetches and parses the directory listing of /videos/
+    // Path to a JSON manifest in your repo
+    const manifestPath = 'videos/videos.json';
+
+    // Fetch manifest instead of relying on directory listing
     async function getVideoList() {
-      const response = await fetch('videos/');
-      const text = await response.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(text, 'text/html');
-      const links = Array.from(doc.querySelectorAll('a')).map(a => a.href);
-      // Filter for common video extensions
-      const videoFiles = links.filter(link => /\.(mp4|webm|ogg)$/i.test(link));
-      return videoFiles;
+      try {
+        const res = await fetch(manifestPath);
+        const files = await res.json();
+        // Prepend folder path
+        return files.map(f => `videos/${f}`);
+      } catch (err) {
+        console.error('Failed to load video manifest:', err);
+        return [];
+      }
     }
 
     let videos = [];
@@ -47,13 +37,13 @@
     const splashEl = document.getElementById('splash');
 
     function playVideo() {
-      videoEl.src = videos[currentIndex];
+      const src = videos[currentIndex];
+      videoEl.src = src;
       videoEl.load();
       videoEl.play();
     }
 
     videoEl.addEventListener('ended', () => {
-      // Show splash GIF between videos
       splashEl.style.display = 'block';
       videoEl.style.display = 'none';
       setTimeout(() => {
@@ -61,16 +51,16 @@
         videoEl.style.display = 'block';
         currentIndex = (currentIndex + 1) % videos.length;
         playVideo();
-      }, 3000); // Adjust splash duration here (in ms)
+      }, 3000);
     });
 
     window.addEventListener('load', async () => {
       videos = await getVideoList();
-      if (videos.length > 0) {
-        playVideo();
-      } else {
-        console.error('No video files found in /videos/');
+      if (!videos.length) {
+        console.error('No videos found. Check that videos/videos.json exists and has a list of filenames.');
+        return;
       }
+      playVideo();
     });
   </script>
 </body>
