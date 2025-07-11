@@ -37,6 +37,8 @@
 
     // Start playing the first video
     function startFirstVideo() {
+      splashEl.style.display = 'none';
+      videoEl.style.display = 'block';
       videoEl.src = videos[currentIndex];
       videoEl.load();
       videoEl.play();
@@ -47,19 +49,22 @@
       // Show splash and hide video
       splashEl.style.display = 'block';
       videoEl.style.display = 'none';
+      const splashStart = Date.now();
 
-      // Advance index and preload next video
+      // Advance to next video and preload
       currentIndex = (currentIndex + 1) % videos.length;
       videoEl.src = videos[currentIndex];
       videoEl.load();
-      videoEl.play();
 
-      // Once next video can play, wait 500ms then switch back
+      // Once next video is ready to play:
       const onCanPlay = () => {
+        videoEl.play();
+        const elapsed = Date.now() - splashStart;
+        const waitTime = Math.max(5000 - elapsed, 0);
         setTimeout(() => {
           splashEl.style.display = 'none';
           videoEl.style.display = 'block';
-        }, 500);
+        }, waitTime);
         videoEl.removeEventListener('canplay', onCanPlay);
       };
       videoEl.addEventListener('canplay', onCanPlay);
