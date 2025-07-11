@@ -17,7 +17,7 @@
 
   <script>
     // Path to a JSON manifest in your repo
-    const manifestPath = 'videos/videos.json';
+    const manifestPath = 'Videos/videos.json';
 
     // Fetch manifest instead of relying on directory listing
     async function getVideoList() {
@@ -25,7 +25,7 @@
         const res = await fetch(manifestPath);
         const files = await res.json();
         // Prepend folder path
-        return files.map(f => `videos/${f}`);
+        return files.map(f => `Videos/${f}`);
       } catch (err) {
         console.error('Failed to load video manifest:', err);
         return [];
@@ -64,6 +64,6 @@
       playVideo();
     });
   </script>
-  
+
 </body>
 </html>
