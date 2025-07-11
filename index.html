@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reception_TV_V1.01</title>
+  <title>Reception TV</title>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; background: black; }
     #videoPlayer, #splash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -14,17 +14,15 @@
 <body>
   <video id="videoPlayer" autoplay muted playsinline></video>
   <img id="splash" src="splash.gif" alt="Loading...">
-
   <script>
-    // Path to a JSON manifest in your repo
+    // Path to manifest
     const manifestPath = 'Videos/videos.json';
 
-    // Fetch manifest instead of relying on directory listing
+    // Fetch the JSON manifest
     async function getVideoList() {
       try {
         const res = await fetch(manifestPath);
         const files = await res.json();
-        // Prepend folder path
         return files.map(f => `Videos/${f}`);
       } catch (err) {
         console.error('Failed to load video manifest:', err);
@@ -37,33 +35,46 @@
     const videoEl = document.getElementById('videoPlayer');
     const splashEl = document.getElementById('splash');
 
-    function playVideo() {
-      const src = videos[currentIndex];
-      videoEl.src = src;
+    // Start playing the first video
+    function startFirstVideo() {
+      videoEl.src = videos[currentIndex];
       videoEl.load();
       videoEl.play();
     }
 
-    videoEl.addEventListener('ended', () => {
+    // Handle end of each video
+    function handleVideoEnd() {
+      // Show splash and hide video
       splashEl.style.display = 'block';
       videoEl.style.display = 'none';
-      setTimeout(() => {
-        splashEl.style.display = 'none';
-        videoEl.style.display = 'block';
-        currentIndex = (currentIndex + 1) % videos.length;
-        playVideo();
-      }, 3000);
-    });
+
+      // Advance index and preload next video
+      currentIndex = (currentIndex + 1) % videos.length;
+      videoEl.src = videos[currentIndex];
+      videoEl.load();
+      videoEl.play();
+
+      // Once next video can play, wait 500ms then switch back
+      const onCanPlay = () => {
+        setTimeout(() => {
+          splashEl.style.display = 'none';
+          videoEl.style.display = 'block';
+        }, 500);
+        videoEl.removeEventListener('canplay', onCanPlay);
+      };
+      videoEl.addEventListener('canplay', onCanPlay);
+    }
+
+    videoEl.addEventListener('ended', handleVideoEnd);
 
     window.addEventListener('load', async () => {
       videos = await getVideoList();
       if (!videos.length) {
-        console.error('No videos found. Check that videos/videos.json exists and has a list of filenames.');
+        console.error('No videos found. Check that videos/videos.json exists and lists your filenames.');
         return;
       }
-      playVideo();
+      startFirstVideo();
     });
   </script>
-
 </body>
 </html>
