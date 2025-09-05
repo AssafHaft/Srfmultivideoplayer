@@ -55,21 +55,31 @@
 
     // Tunables
     const splashDurationMs = 7000;         // How long the splash shows between videos
+    const decodeTimeoutMs  = 5000;         // Fallback if readiness events are missed
     const preFadeThresholdSec = 0.25;      // Start splash this many seconds before video end
     const ensureFrameHoldSec = 0.05;       // Keep last frame briefly while splash fades in
 
     // Start playing the first video
     function startFirstVideo() {
       splashEl.style.opacity = 0; // hidden
-      videoEl.src = videos[currentIndex];
-      videoEl.load();
-      // Wait for first frame then play to avoid initial black
-      const onLoadedData = () => {
+      let settled = false;
+      const cleanup = () => {
         videoEl.removeEventListener('loadeddata', onLoadedData);
-        videoEl.currentTime = 0;
+        videoEl.removeEventListener('canplay', onCanPlay);
+        if (fallback) clearTimeout(fallback);
+      };
+      const proceed = () => {
+        if (settled) return; settled = true; cleanup();
+        try { videoEl.currentTime = 0; } catch (_) {}
         videoEl.play().catch(() => {});
       };
+      const onLoadedData = () => proceed();
+      const onCanPlay = () => proceed();
       videoEl.addEventListener('loadeddata', onLoadedData);
+      videoEl.addEventListener('canplay', onCanPlay);
+      const fallback = setTimeout(() => proceed(), decodeTimeoutMs);
+      videoEl.src = videos[currentIndex];
+      videoEl.load();
     }
 
     // Track whether we already started the pre-fade for the current video
@@ -104,25 +114,32 @@
 
       // Advance to next video and preload first frame
       currentIndex = (currentIndex + 1) % videos.length;
-      videoEl.src = videos[currentIndex];
-      videoEl.load();
 
-      const onLoadedData = () => {
+      let settled = false;
+      const cleanup = () => {
         videoEl.removeEventListener('loadeddata', onLoadedData);
-        // Wait for splash duration minus any time already shown
+        videoEl.removeEventListener('canplay', onCanPlay);
+        if (fallback) clearTimeout(fallback);
+      };
+      const proceed = () => {
+        if (settled) return; settled = true; cleanup();
         const elapsed = Date.now() - splashStart;
         const waitTime = Math.max(splashDurationMs - elapsed, 0);
-        // When it's time, start playback and reveal the video under the fading splash
         setTimeout(() => {
-          // Ensure we start from the beginning and only then reveal
           try { videoEl.currentTime = 0; } catch (_) {}
           videoEl.play().catch(() => {});
-          // Crossfade out splash to expose the already-decoding first frame
           splashEl.style.opacity = 0;
           preFadeStarted = false; // reset for next cycle
         }, waitTime);
       };
+      const onLoadedData = () => proceed();
+      const onCanPlay = () => proceed();
       videoEl.addEventListener('loadeddata', onLoadedData);
+      videoEl.addEventListener('canplay', onCanPlay);
+      const fallback = setTimeout(() => proceed(), decodeTimeoutMs);
+
+      videoEl.src = videos[currentIndex];
+      videoEl.load();
     }
 
     videoEl.addEventListener('ended', handleVideoEnd);
