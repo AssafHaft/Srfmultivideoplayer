@@ -57,7 +57,9 @@
     const splashDurationMs = 7000;         // How long the splash shows between videos
     const decodeTimeoutMs  = 5000;         // Fallback if readiness events are missed
     const preFadeThresholdSec = 0.25;      // Start splash this many seconds before video end
-    const ensureFrameHoldSec = 0.05;       // Keep last frame briefly while splash fades in
+    // Robustness: we no longer seek near the end to "hold" the last frame,
+    // as some devices stall and never fire `ended`. We instead rely on a
+    // short fallback timer once pre-fade begins.
 
     // Start playing the first video
     function startFirstVideo() {
@@ -84,6 +86,8 @@
 
     // Track whether we already started the pre-fade for the current video
     let preFadeStarted = false;
+    let preFadeTimeoutId = null; // failsafe to advance if `ended` doesn't fire
+    let switching = false;       // guard to prevent double transitions
 
     function beginPreFadeIfNeeded() {
       if (!Number.isFinite(videoEl.duration)) return;
@@ -92,21 +96,22 @@
         preFadeStarted = true;
         // Fade splash on top before the video ends to mask any last-frame black
         splashEl.style.opacity = 1;
-        // Keep the last video frame visible under splash briefly
-        try {
-          if (!videoEl.ended && remaining > 0) {
-            const holdAt = Math.max(videoEl.duration - ensureFrameHoldSec, 0);
-            // Seeking near the end can be flaky; only attempt if close enough
-            if (holdAt > 0 && (videoEl.currentTime < holdAt)) {
-              videoEl.currentTime = holdAt;
-            }
+        // Failsafe: if `ended` doesn't arrive soon (due to decode/seek quirks),
+        // advance manually. Timer cleared in `handleVideoEnd`.
+        if (preFadeTimeoutId) clearTimeout(preFadeTimeoutId);
+        preFadeTimeoutId = setTimeout(() => {
+          if (!switching && !videoEl.ended) {
+            handleVideoEnd();
           }
-        } catch (_) { /* best effort */ }
+        }, Math.max(1500, Math.ceil(preFadeThresholdSec * 1000) + 500));
       }
     }
 
     // Handle end of each video
     function handleVideoEnd() {
+      if (switching) return; // prevent re-entry
+      switching = true;
+      if (preFadeTimeoutId) { clearTimeout(preFadeTimeoutId); preFadeTimeoutId = null; }
       // Ensure splash is visible (in case pre-fade didn't trigger)
       splashEl.style.opacity = 1;
 
@@ -130,6 +135,7 @@
           videoEl.play().catch(() => {});
           splashEl.style.opacity = 0;
           preFadeStarted = false; // reset for next cycle
+          switching = false;
         }, waitTime);
       };
       const onLoadedData = () => proceed();
