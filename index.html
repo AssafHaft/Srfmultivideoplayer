@@ -17,9 +17,9 @@
     }
     /* Use opacity crossfades to avoid 1-frame black flashes */
     #splash {
+      display: none;          /* keep GIF fully paused when hidden */
       opacity: 0;
       transition: opacity 160ms linear;
-      will-change: opacity;
       pointer-events: none;
     }
     #videoPlayer {
@@ -29,7 +29,7 @@
 </head>
 <body>
   <div id="stage">
-    <video id="videoPlayer" autoplay muted playsinline preload="auto"></video>
+    <video id="videoPlayer" autoplay muted playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noremoteplayback"></video>
     <img id="splash" src="splash.gif" alt="Loading...">
   </div>
   <script>
@@ -63,7 +63,7 @@
 
     // Start playing the first video
     function startFirstVideo() {
-      splashEl.style.opacity = 0; // hidden
+      hideSplash(true); // ensure splash is fully hidden and paused
       let settled = false;
       const cleanup = () => {
         videoEl.removeEventListener('loadeddata', onLoadedData);
@@ -89,13 +89,42 @@
     let preFadeTimeoutId = null; // failsafe to advance if `ended` doesn't fire
     let switching = false;       // guard to prevent double transitions
 
+    // Splash helpers: toggle display to pause animated GIF when hidden
+    function showSplash() {
+      if (splashEl.style.display !== 'block') {
+        splashEl.style.display = 'block';
+        // Ensure starting opacity is 0 before animating to 1
+        splashEl.style.opacity = 0;
+        requestAnimationFrame(() => { splashEl.style.opacity = 1; });
+      } else {
+        if (splashEl.style.opacity !== '1') splashEl.style.opacity = 1;
+      }
+    }
+
+    function hideSplash(immediate = false) {
+      if (splashEl.style.display === 'none') return;
+      if (immediate) {
+        splashEl.style.opacity = 0;
+        splashEl.style.display = 'none';
+        return;
+      }
+      const onEnd = (ev) => {
+        if (ev.propertyName === 'opacity') {
+          splashEl.removeEventListener('transitionend', onEnd);
+          splashEl.style.display = 'none'; // fully pause GIF
+        }
+      };
+      splashEl.addEventListener('transitionend', onEnd);
+      splashEl.style.opacity = 0;
+    }
+
     function beginPreFadeIfNeeded() {
       if (!Number.isFinite(videoEl.duration)) return;
       const remaining = videoEl.duration - videoEl.currentTime;
       if (!preFadeStarted && remaining <= preFadeThresholdSec) {
         preFadeStarted = true;
         // Fade splash on top before the video ends to mask any last-frame black
-        splashEl.style.opacity = 1;
+        showSplash();
         // Failsafe: if `ended` doesn't arrive soon (due to decode/seek quirks),
         // advance manually. Timer cleared in `handleVideoEnd`.
         if (preFadeTimeoutId) clearTimeout(preFadeTimeoutId);
@@ -113,7 +142,7 @@
       switching = true;
       if (preFadeTimeoutId) { clearTimeout(preFadeTimeoutId); preFadeTimeoutId = null; }
       // Ensure splash is visible (in case pre-fade didn't trigger)
-      splashEl.style.opacity = 1;
+      showSplash();
 
       const splashStart = Date.now();
 
@@ -133,7 +162,7 @@
         setTimeout(() => {
           try { videoEl.currentTime = 0; } catch (_) {}
           videoEl.play().catch(() => {});
-          splashEl.style.opacity = 0;
+          hideSplash();
           preFadeStarted = false; // reset for next cycle
           switching = false;
         }, waitTime);
